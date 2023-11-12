@@ -2,7 +2,6 @@ package webhooks
 
 import (
 	"bytes"
-	"context"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -10,33 +9,6 @@ import (
 
 	orchestrator "github.com/dapper-data/dapper-orchestrator"
 )
-
-// TestWebhookInput_Handle_Naive exists to ensure Handle hooks the correct
-// event channel up for our HTTP handler function to use
-func TestWebhookInput_Handle_Naive(t *testing.T) {
-	wh, err := NewWebhookInput(orchestrator.InputConfig{
-		Name:             "test-webhook-input",
-		ConnectionString: "/webhooks/test-webhook-input/events",
-	})
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	c := make(chan orchestrator.Event)
-	ready := make(chan bool)
-
-	go func() {
-		wh.Handle(context.Background(), c)
-		ready <- true
-	}()
-
-	// Let wh.Handle run and assign the correct chan
-	<-ready
-
-	if c != wh.c {
-		t.Errorf("channels do not have the same addresses as expected")
-	}
-}
 
 func TestWebhookInput_Handle(t *testing.T) {
 	wh, err := NewWebhookInput(orchestrator.InputConfig{
