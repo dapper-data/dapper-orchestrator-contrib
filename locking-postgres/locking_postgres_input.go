@@ -12,19 +12,26 @@ import (
 	"github.com/lib/pq"
 )
 
-// PostgresInput represents a sample postgres input source
+// PostgresInput is an enhanced version of the sample PostgresInput defined in
+// github.com/dapper-data/dapper-orchestrator.
 //
-// This source will:
+// Notable enhancements include:
+// 1. Being clusterable, which is to say that that many PostgresInputs can connect to the same database, with a guarantee that each operation will be processed only once
+// 2. The New function can be used as an orchestrator.NewInputFunc, which opens up a world of building pipelines on the fly
 //
-//  1. Create a function which notifies a channel with a json payload representing an operation
-//  2. Add a trigger to every table in a database to call that function on Creat, Update, and Deletes
-//  3. Listen to the channel created in step 1
+// This PostgresInput is the 'locking postgres input', in the sense that while many replicas of a pipeline
+// orchestrator may run at once, when this input connects to database for the first time it uses an internal
+// database table to provide a locking mechanism, which ensures only one Input is listening to database
+// operations at once.
 //
-// The operations passed by the database can then be passed to a Process
+// This Input can be used in place of the sample PostgresInput from the dapper-orchestrator package; it
+// has the same configuration and provides the same knobs to twiddle.
 type PostgresInput struct {
-	conn     *sqlx.DB
-	listener *pq.Listener
-	config   orchestrator.InputConfig
+	conn          *sqlx.DB
+	listener      *pq.Listener
+	config        orchestrator.InputConfig
+	listenerErrs  chan error
+	lockTableName string
 }
 
 type postgresTriggerResult struct {
@@ -37,12 +44,20 @@ type postgresTriggerResult struct {
 // which implements the orchestrator.Input interface
 //
 // The InputConfig.ConnectionString argument can be a DSN, or a postgres
-// URL
+// URL.
+//
+// This function will error on:
+// 1. Invalid postgres connection strings
+// 2. Connection errors to postgres
+// 3. Errors creating a listener for database operations
+//
+// This function, somewhat permissively, has a 500ms timeout to postgres, which should
+// cover off all but the most slow networks, while at the same time not slowing execution
+// down too much _on_ those slow connections
 func New(ic orchestrator.InputConfig) (p PostgresInput, err error) {
 	p.config = ic
-
-	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
-	defer cancel()
+	p.lockTableName = p.deriveLockTableName()
+	p.listenerErrs = make(chan error)
 
 	url := ic.ConnectionString
 	if strings.HasPrefix(url, "postgres://") || strings.HasPrefix(url, "postgresql://") {
@@ -52,15 +67,16 @@ func New(ic orchestrator.InputConfig) (p PostgresInput, err error) {
 		}
 	}
 
+	ctx, cancel := context.WithTimeout(context.Background(), time.Millisecond*500)
+	defer cancel()
+
 	p.conn, err = sqlx.ConnectContext(ctx, "postgres", url)
 	if err != nil {
 		return
 	}
 
 	p.listener = pq.NewListener(ic.ConnectionString, time.Second, time.Second*10, func(event pq.ListenerEventType, err error) {
-		if err != nil {
-			panic(err)
-		}
+		p.listenerErrs <- err
 	})
 
 	return
@@ -71,10 +87,18 @@ func (p PostgresInput) ID() string {
 	return strings.ReplaceAll(p.config.ID(), "-", "_")
 }
 
-// Handle will configure a database for notification, and then listen to those
-// notifications
+// Handle will:
+//
+// 1. Create triggers and pg_notify procedures so that changes to the database are picked up
+// 2. Create an internal table which instances of this PostgresInput will use to ensure operations are handled once
+// 3. Parse operations from the database, turning them into `orchestrator.Events`
+// From there, the orchestrator its self handles routing of events to different inputs
+//
+// This function returns errors when garbage comes back from the database, and where database operations
+// go away. In such a situation, and where multiple instances of this input run across mutliple replicas
+// of an orchestrator, processing should carry on normally- just on another node
 func (p PostgresInput) Handle(ctx context.Context, c chan orchestrator.Event) (err error) {
-	err = p.createTriggers()
+	err = p.configure()
 	if err != nil {
 		return
 	}
@@ -86,8 +110,7 @@ func (p PostgresInput) Handle(ctx context.Context, c chan orchestrator.Event) (e
 	// end up with duplicate events.
 	//
 	// In theory, at least
-	lockTableName := p.lockTableName()
-	err = p.getLock(lockTableName)
+	err = p.getLock(p.lockTableName)
 	if err != nil {
 		return
 	}
@@ -97,33 +120,53 @@ func (p PostgresInput) Handle(ctx context.Context, c chan orchestrator.Event) (e
 		return err
 	}
 
-	for n := range p.listener.NotificationChannel() {
-		input := new(postgresTriggerResult)
+	for {
+		select {
+		case n := <-p.listener.NotificationChannel():
+			err = p.handle(c, n)
 
-		err = json.Unmarshal([]byte(n.Extra), input)
+		case err = <-p.listenerErrs:
+
+		}
+
 		if err != nil {
 			return
-		}
-
-		// Ignore changes to lock table
-		if input.Table == lockTableName {
-			continue
-		}
-
-		c <- orchestrator.Event{
-			Location:  input.Table,
-			Operation: input.Operation,
-			ID:        fmt.Sprintf("%v", input.ID),
-			Trigger:   p.ID(),
 		}
 	}
 
 	return
 }
 
-// createTriggers will connect to the database and configure triggers and
-// notifies ahead of processing
-func (p PostgresInput) createTriggers() (err error) {
+func (p PostgresInput) handle(c chan orchestrator.Event, n *pq.Notification) (err error) {
+	if n == nil {
+		return
+	}
+
+	input := new(postgresTriggerResult)
+
+	err = json.Unmarshal([]byte(n.Extra), input)
+	if err != nil {
+		return
+	}
+
+	// Ignore changes to lock table
+	if input.Table == p.lockTableName {
+		return
+	}
+
+	c <- orchestrator.Event{
+		Location:  input.Table,
+		Operation: input.Operation,
+		ID:        fmt.Sprintf("%v", input.ID),
+		Trigger:   p.ID(),
+	}
+
+	return
+}
+
+// configure will connect to the database and configure triggers and
+// notifies and lock tables and so on so that Handle can do what it needs to
+func (p PostgresInput) configure() (err error) {
 	tf := p.triggerFunc()
 	tx := p.conn.MustBegin()
 
@@ -132,10 +175,8 @@ func (p PostgresInput) createTriggers() (err error) {
 		return
 	}
 
-	lockTbl := p.lockTableName()
-
 	tables := make([]string, 0)
-	err = tx.Select(&tables, "SELECT tablename FROM pg_catalog.pg_tables where schemaname = 'public' and tablename != $1;", lockTbl)
+	err = tx.Select(&tables, "SELECT tablename FROM pg_catalog.pg_tables where schemaname = 'public' and tablename != $1;", p.lockTableName)
 	if err != nil {
 		return
 	}
@@ -148,7 +189,7 @@ func (p PostgresInput) createTriggers() (err error) {
 	}
 
 	// create lock table
-	_, err = tx.Exec(p.createLockTable(lockTbl))
+	_, err = tx.Exec(p.createLockTable(p.lockTableName))
 
 	return tx.Commit()
 }
@@ -179,7 +220,7 @@ AFTER INSERT OR UPDATE OR DELETE ON %[1]s FOR EACH ROW
 EXECUTE PROCEDURE process_record_%[2]s();`, table, p.ID())
 }
 
-func (p PostgresInput) lockTableName() string {
+func (p PostgresInput) deriveLockTableName() string {
 	return fmt.Sprintf("lock_postgres_input_%s", p.ID())
 }
 
