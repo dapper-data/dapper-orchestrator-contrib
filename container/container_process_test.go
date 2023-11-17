@@ -35,7 +35,7 @@ func TestNew(t *testing.T) {
 		pc          orchestrator.ProcessConfig
 		expectError error
 	}{
-		{"empty config", orchestrator.ProcessConfig{}, container.ContainerImageMissingErr{}},
+		{"empty config", orchestrator.ProcessConfig{}, container.ImageMissingErr{}},
 		{"full and valid config", validContainerProcessConfig, nil},
 	} {
 		t.Run(test.name, func(t *testing.T) {

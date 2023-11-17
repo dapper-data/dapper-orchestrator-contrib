@@ -24,11 +24,11 @@ const (
 	pullKey  = "pull"
 )
 
-// ContainerImageMissingErr is returned when the ExecutionContext passed to
+// ImageMissingErr is returned when the ExecutionContext passed to
 // NewContainerProcess doesn't contain tke key "image"
 //
 // To fix this, ensure that a container image is set
-type ContainerImageMissingErr struct{}
+type ImageMissingErr struct{}
 
 // Error implements the error interface and returns a contextual message
 //
@@ -36,23 +36,23 @@ type ContainerImageMissingErr struct{}
 // version of fmt.Errorf("container image missing"), is verbosely implemented
 // so that callers may use errors.Is(err, orchestrator.ContainerImageMissingErr)
 // to handle error cases better
-func (e ContainerImageMissingErr) Error() string {
+func (e ImageMissingErr) Error() string {
 	return "container image missing"
 }
 
-// ContainerNonZeroExit is returned when the container exists with anything other
+// NonZeroExit is returned when the container exists with anything other
 // than exit code 0
 //
 // Container logs should shed light on what went wrong
-type ContainerNonZeroExit int64
+type NonZeroExit int64
 
 // Error returns the error message associated with this error
-func (e ContainerNonZeroExit) Error() string {
+func (e NonZeroExit) Error() string {
 	return fmt.Sprintf("process exited with code %d", int64(e))
 }
 
-// ContainerProcess allows for processes to be run via a container
-type ContainerProcess struct {
+// Process allows for processes to be run via a container
+type Process struct {
 	image         string
 	additionalEnv []string
 	c             *client.Client
@@ -62,13 +62,13 @@ type ContainerProcess struct {
 
 // New connects to a container socket, and returns a
 // ContainerProcess which can be then used to run jobs
-func New(conf orchestrator.ProcessConfig) (c ContainerProcess, err error) {
+func New(conf orchestrator.ProcessConfig) (c Process, err error) {
 	var ok bool
 
 	c.config = conf
 	c.image, ok = conf.ExecutionContext[imageKey]
 	if !ok {
-		err = ContainerImageMissingErr{}
+		err = ImageMissingErr{}
 
 		return
 	}
@@ -81,12 +81,12 @@ func New(conf orchestrator.ProcessConfig) (c ContainerProcess, err error) {
 }
 
 // ID returns a unique ID for a process manager
-func (c ContainerProcess) ID() string {
+func (c Process) ID() string {
 	return c.config.ID()
 }
 
 // Run takes an Event, and passes it to a container to run
-func (c ContainerProcess) Run(ctx context.Context, e orchestrator.Event) (ps orchestrator.ProcessStatus, err error) {
+func (c Process) Run(ctx context.Context, e orchestrator.Event) (ps orchestrator.ProcessStatus, err error) {
 	name := c.deriveName()
 
 	ps = orchestrator.ProcessStatus{
@@ -161,18 +161,18 @@ func (c ContainerProcess) Run(ctx context.Context, e orchestrator.Event) (ps orc
 		default:
 			ps.Status = orchestrator.ProcessFail
 
-			return ps, ContainerNonZeroExit(wr.StatusCode)
+			return ps, NonZeroExit(wr.StatusCode)
 		}
 	}
 
 	return
 }
 
-func (c ContainerProcess) deriveName() string {
+func (c Process) deriveName() string {
 	return fmt.Sprintf("%s_%v", c.ID(), time.Now().UnixMicro())
 }
 
-func (c ContainerProcess) env(e orchestrator.Event) (out []string) {
+func (c Process) env(e orchestrator.Event) (out []string) {
 	ev, err := e.JSON()
 	if err != nil {
 		return c.additionalEnv
