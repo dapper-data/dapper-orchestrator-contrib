@@ -4,11 +4,11 @@
 
 ## Types
 
-### type [PostgresInput](/locking_postgres_input.go#L29)
+### type [Postgres](/locking_postgres_input.go#L29)
 
-`type PostgresInput struct { ... }`
+`type Postgres struct { ... }`
 
-PostgresInput is an enhanced version of the sample PostgresInput defined in
+Postgres is an enhanced version of the sample PostgresInput defined in
 github.com/dapper-data/dapper-orchestrator.
 
 Notable enhancements include:
@@ -23,9 +23,9 @@ operations at once.
 This Input can be used in place of the sample PostgresInput from the dapper-orchestrator package; it
 has the same configuration and provides the same knobs to twiddle.
 
-#### func (PostgresInput) [Handle](/locking_postgres_input.go#L100)
+#### func (Postgres) [Handle](/locking_postgres_input.go#L100)
 
-`func (p PostgresInput) Handle(ctx context.Context, c chan orchestrator.Event) (err error)`
+`func (p Postgres) Handle(ctx context.Context, c chan orchestrator.Event) (err error)`
 
 Handle will:
 
@@ -38,9 +38,9 @@ This function returns errors when garbage comes back from the database, and wher
 go away. In such a situation, and where multiple instances of this input run across mutliple replicas
 of an orchestrator, processing should carry on normally- just on another node
 
-#### func (PostgresInput) [ID](/locking_postgres_input.go#L86)
+#### func (Postgres) [ID](/locking_postgres_input.go#L86)
 
-`func (p PostgresInput) ID() string`
+`func (p Postgres) ID() string`
 
 ID returns the ID for this Input
 

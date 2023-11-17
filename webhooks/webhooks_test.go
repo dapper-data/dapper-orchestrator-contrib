@@ -11,7 +11,7 @@ import (
 
 func ExampleWebhookInputAndProcess() {
 	// Create a WebhookInput listening on the path /webhooks/test-webhook-input/events
-	wh, err := webhooks.NewWebhookInput(orchestrator.InputConfig{
+	wh, err := webhooks.NewInput(orchestrator.InputConfig{
 		Name:             "test-webhook-input",
 		ConnectionString: "/webhooks/test-webhook-input/events",
 	})
@@ -20,7 +20,7 @@ func ExampleWebhookInputAndProcess() {
 	}
 
 	// Create a WebhookProcess which sends events onto a further destination
-	wp, err := webhooks.NewWebhookProcess(orchestrator.ProcessConfig{
+	wp, err := webhooks.NewProcess(orchestrator.ProcessConfig{
 		Name: "test-webhook-input",
 		ExecutionContext: map[string]string{
 			webhooks.MethodKey:    http.MethodPost,

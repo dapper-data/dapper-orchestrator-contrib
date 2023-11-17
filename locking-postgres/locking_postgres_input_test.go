@@ -12,7 +12,7 @@ import (
 	_ "github.com/lib/pq"
 )
 
-func TestNewPostgresInput(t *testing.T) {
+func TestNew(t *testing.T) {
 	for _, test := range []struct {
 		url         string
 		expectError bool

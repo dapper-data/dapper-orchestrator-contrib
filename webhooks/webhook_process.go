@@ -53,7 +53,7 @@ func (e BadStatusErr) Error() string {
 	return fmt.Sprintf("error calling webhook: %s returned %q", e.url, e.status)
 }
 
-// WebhookProcess implements the orchestrator.Process interface
+// Process implements the orchestrator.Process interface
 //
 // When triggered, it sends a the orchestrator.Event is was called with
 // as JSON to the endpoint the WebhookProcess was instantiated with via the arguments to
@@ -61,13 +61,13 @@ func (e BadStatusErr) Error() string {
 //
 // For custom process endpoints, simply copy the code in github.com/dapper-data/dapper-orchestrator-contrib/webhooks
 // and replace the bits you want to replace
-type WebhookProcess struct {
+type Process struct {
 	pc        orchestrator.ProcessConfig
 	targetURL string
 	method    string
 }
 
-// NewWebhookProcess is an orchestrator.NewProcessFunc which configures a new
+// NewProcess is an orchestrator.NewProcessFunc which configures a new
 // WebhookProcess.
 //
 // It expects the following keys set within the ExecutionContext:
@@ -77,7 +77,7 @@ type WebhookProcess struct {
 //	    webhooks.MethodKey:     http.MethodPut,              // defaults to POST
 //	    webhooks.TargetURLKey: "https://example.com/",       // errors if unset or empty
 //	}
-func NewWebhookProcess(pc orchestrator.ProcessConfig) (wh WebhookProcess, err error) {
+func NewProcess(pc orchestrator.ProcessConfig) (wh Process, err error) {
 	var ok bool
 
 	wh.pc = pc
@@ -98,7 +98,7 @@ func NewWebhookProcess(pc orchestrator.ProcessConfig) (wh WebhookProcess, err er
 //
 // Additionally, the logs field of the returned orchestrator.ProcessStatus will contain
 // errors, warnings, and response metadata (which can be ignored if err == nil)
-func (w WebhookProcess) Run(ctx context.Context, e orchestrator.Event) (ps orchestrator.ProcessStatus, err error) {
+func (w Process) Run(ctx context.Context, e orchestrator.Event) (ps orchestrator.ProcessStatus, err error) {
 	ps.Name = w.ID()
 	ps.Status = orchestrator.ProcessUnstarted
 	ps.Logs = make([]string, 0)
@@ -137,11 +137,11 @@ func (w WebhookProcess) Run(ctx context.Context, e orchestrator.Event) (ps orche
 }
 
 // ID returns an ID for this process
-func (w WebhookProcess) ID() string {
+func (w Process) ID() string {
 	return w.pc.ID()
 }
 
-func (w WebhookProcess) executionContextOrDefault(key, def string) string {
+func (w Process) executionContextOrDefault(key, def string) string {
 	v, ok := w.pc.ExecutionContext[key]
 	if ok {
 		return v
