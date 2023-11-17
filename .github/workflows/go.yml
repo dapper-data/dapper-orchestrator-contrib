@@ -38,7 +38,7 @@ jobs:
     - run: docker pull hello-world
 
     - name: Test
-      run: go test -v -covermode=count -coverprofile=coverage.out ./...
+      run: for D in $(find . -maxdepth 1 -mindepth 1 -type d ! -name '.*' ); do pushd $D && go test -v -covermode=count && popd; done
       env:
         TEST_DB_CONN_STRING: "user=postgres password=postgres dbname=tests sslmode=disable port=5432 host=localhost"
         TEST_DB_URL: "postgres://postgres:postgres@localhost:5432/tests?sslmode=disable"
