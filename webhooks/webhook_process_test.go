@@ -11,7 +11,7 @@ import (
 	orchestrator "github.com/dapper-data/dapper-orchestrator"
 )
 
-func TestNewWebhookProcess(t *testing.T) {
+func TestNewProcess(t *testing.T) {
 	for _, test := range []struct {
 		name        string
 		pc          orchestrator.ProcessConfig
@@ -23,7 +23,7 @@ func TestNewWebhookProcess(t *testing.T) {
 		}, nil},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			_, err := NewWebhookProcess(test.pc)
+			_, err := NewProcess(test.pc)
 			if err == nil && test.expectError != nil {
 				t.Errorf("expected error, received none")
 			} else if err != nil && test.expectError == nil {
@@ -41,7 +41,7 @@ func TestNewWebhookProcess(t *testing.T) {
 	}
 }
 
-func TestNewWebhookProcess_Run(t *testing.T) {
+func TestProcess_Run(t *testing.T) {
 	successPS := orchestrator.ProcessStatus{
 		Name:   "tests",
 		Status: orchestrator.ProcessSuccess,
@@ -89,7 +89,7 @@ func TestNewWebhookProcess_Run(t *testing.T) {
 		{"non-existent url", "https://webhooks.test/webhook", unstartedPS, new(url.Error)},
 	} {
 		t.Run(test.name, func(t *testing.T) {
-			w, err := NewWebhookProcess(orchestrator.ProcessConfig{
+			w, err := NewProcess(orchestrator.ProcessConfig{
 				Name: "tests",
 				ExecutionContext: map[string]string{
 					"url":    test.url,

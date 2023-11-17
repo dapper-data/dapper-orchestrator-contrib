@@ -10,8 +10,8 @@ import (
 	orchestrator "github.com/dapper-data/dapper-orchestrator"
 )
 
-func TestWebhookInput_Handle(t *testing.T) {
-	wh, err := NewWebhookInput(orchestrator.InputConfig{
+func TestInput_Handle(t *testing.T) {
+	wh, err := NewInput(orchestrator.InputConfig{
 		Name:             "test-webhook-input",
 		ConnectionString: "/webhooks/test-webhook-input/events",
 	})

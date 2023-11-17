@@ -17,7 +17,7 @@ var (
 func main() {
 	orchestrator.ConcurrentProcessors = 1
 
-	in, err := webhooks.NewWebhookInput(orchestrator.InputConfig{
+	in, err := webhooks.NewInput(orchestrator.InputConfig{
 		Name:             "webhooks-input-example",
 		ConnectionString: "/webhooks/webhooks-input-example",
 	})
@@ -25,7 +25,7 @@ func main() {
 		panic(err)
 	}
 
-	out, err := webhooks.NewWebhookProcess(orchestrator.ProcessConfig{
+	out, err := webhooks.NewProcess(orchestrator.ProcessConfig{
 		Name: "test-webhook-input",
 		ExecutionContext: map[string]string{
 			webhooks.MethodKey:    http.MethodPost,

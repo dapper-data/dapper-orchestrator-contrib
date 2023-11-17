@@ -8,7 +8,7 @@ import (
 	orchestrator "github.com/dapper-data/dapper-orchestrator"
 )
 
-// WebhookInput implements the orchestrator.Input interface
+// Input implements the orchestrator.Input interface
 //
 // It listens to a user specified path (as specified in the InputConfig.ConnectionString
 // argument to NewWebhookInput), and expects to receive a valid orchestrator.Event as
@@ -16,20 +16,20 @@ import (
 //
 // For custom input payloads, simply copy the code in github.com/dapper-data/dapper-orchestrator-contrib/webhooks
 // and replace the bits you want to replace
-type WebhookInput struct {
+type Input struct {
 	ic orchestrator.InputConfig
 	c  chan orchestrator.Event
 }
 
-// NewWebhookInput is an orchestrator.NewInputFunc which configures a new
+// NewInput is an orchestrator.NewInputFunc which configures a new
 // WebhookInput, exposed on the URL specified in the ConnectionString field
 // of the InputConfig passed to this function.
 //
 // This Input wont automatically expose an HTTP server; the application this
 // type is embedded in needs to do that- see this package's examples for an
 // example of how this might be done
-func NewWebhookInput(ic orchestrator.InputConfig) (wh *WebhookInput, err error) {
-	wh = new(WebhookInput)
+func NewInput(ic orchestrator.InputConfig) (wh *Input, err error) {
+	wh = new(Input)
 	wh.ic = ic
 
 	return
@@ -41,7 +41,7 @@ func NewWebhookInput(ic orchestrator.InputConfig) (wh *WebhookInput, err error) 
 // net/http package and listens for Events which are then passed down Event chan `c`
 //
 // This function exits immediately
-func (w *WebhookInput) Handle(ctx context.Context, c chan orchestrator.Event) (err error) {
+func (w *Input) Handle(ctx context.Context, c chan orchestrator.Event) (err error) {
 	w.c = make(chan orchestrator.Event)
 	http.HandleFunc(w.ic.ConnectionString, w.handler)
 
@@ -56,7 +56,7 @@ func (w *WebhookInput) Handle(ctx context.Context, c chan orchestrator.Event) (e
 	return
 }
 
-func (w WebhookInput) handler(wr http.ResponseWriter, req *http.Request) {
+func (w Input) handler(wr http.ResponseWriter, req *http.Request) {
 	defer req.Body.Close()
 
 	e := new(orchestrator.Event)
@@ -75,6 +75,6 @@ func (w WebhookInput) handler(wr http.ResponseWriter, req *http.Request) {
 }
 
 // ID returns an ID for this input
-func (w WebhookInput) ID() string {
+func (w Input) ID() string {
 	return w.ic.ID()
 }
